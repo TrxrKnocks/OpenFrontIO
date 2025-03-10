@@ -24,6 +24,7 @@ import { GameType } from "../core/game/Game";
 import { getServerConfigFromClient } from "../core/configuration/Config";
 import GoogleAdElement from "./GoogleAdElement";
 import { GameConfig, GameInfo, GameRecord } from "../core/Schemas";
+import LeaderboardUI from "./components/LeaderboardUI";
 
 export interface JoinLobbyEvent {
   // Multiplayer games only have gameID, gameConfig is not known until game starts.
@@ -72,6 +73,17 @@ class Client {
     this.googleAds = document.querySelectorAll(
       "google-ad",
     ) as NodeListOf<GoogleAdElement>;
+
+    // Inject Leaderboard UI
+    const leaderboardElement = document.createElement("div");
+    leaderboardElement.id = "leaderboard-container";
+    document.body.appendChild(leaderboardElement);
+
+// Wait for React to load and render the leaderboard
+    setTimeout(() => {
+    ReactDOM.render(<LeaderboardUI />, leaderboardElement);
+}, 100);
+
 
     window.addEventListener("beforeunload", (event) => {
       consolex.log("Browser is closing");
@@ -155,41 +167,44 @@ class Client {
     }
     const config = await getServerConfigFromClient();
     this.gameStop = joinLobby(
-      {
-        serverConfig: config,
-        flag: (): string =>
-          this.flagInput.getCurrentFlag() == "xx"
-            ? ""
-            : this.flagInput.getCurrentFlag(),
-        playerName: (): string => this.usernameInput.getCurrentUsername(),
-        gameID: lobby.gameID,
-        persistentID: getPersistentIDFromCookie(),
-        playerID: generateID(),
-        clientID: generateID(),
-        gameConfig: lobby.gameConfig ?? lobby.gameRecord?.gameConfig,
-        gameRecord: lobby.gameRecord,
-      },
-      () => {
-        this.joinModal.close();
-        this.publicLobby.stop();
-        document.querySelectorAll(".ad").forEach((ad) => {
-          (ad as HTMLElement).style.display = "none";
-        });
+  {
+    serverConfig: config,
+    flag: (): string =>
+      this.flagInput.getCurrentFlag() == "xx"
+        ? ""
+        : this.flagInput.getCurrentFlag(),
+    playerName: (): string => this.usernameInput.getCurrentUsername(),
+    gameID: lobby.gameID,
+    persistentID: getPersistentIDFromCookie(),
+    playerID: generateID(),
+    clientID: generateID(),
+    gameConfig: lobby.gameConfig ?? lobby.gameRecord?.gameConfig,
+    gameRecord: lobby.gameRecord,
+  },
+  () => {
+    this.joinModal.close();
+    this.publicLobby.stop();
+    document.querySelectorAll(".ad").forEach((ad) => {
+      (ad as HTMLElement).style.display = "none";
+    });
 
-        // show when the game loads
-        const startingModal = document.querySelector(
-          "game-starting-modal",
-        ) as GameStartingModal;
-        startingModal instanceof GameStartingModal;
-        startingModal.show();
+    // Show when the game loads
+    const startingModal = document.querySelector(
+      "game-starting-modal",
+    ) as GameStartingModal;
+    startingModal instanceof GameStartingModal;
+    startingModal.show();
 
-        if (event.detail.gameConfig?.gameType != GameType.Singleplayer) {
-          window.history.pushState({}, "", `/join/${lobby.gameID}`);
-          sessionStorage.setItem("inLobby", "true");
-        }
-      },
-    );
-  }
+    if (event.detail.gameConfig?.gameType != GameType.Singleplayer) {
+      window.history.pushState({}, "", `/join/${lobby.gameID}`);
+      sessionStorage.setItem("inLobby", "true");
+    }
+
+    // ✅ Add player score to leaderboard when the game starts
+    leaderboard.addScore(this.usernameInput.getCurrentUsername(), 100);
+  },
+);
+
 
   private async handleLeaveLobby(event: CustomEvent) {
     if (this.gameStop == null) {
